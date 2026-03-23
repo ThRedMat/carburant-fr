@@ -1,16 +1,60 @@
-# React + Vite
+# Carburant FR
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Carburant FR est une application web progressive (PWA) permettant de consulter en temps reel les prix des carburants en France. L'application exploite les donnees ouvertes du gouvernement pour offrir une interface moderne, rapide et axee sur l'economie au quotidien.
 
-Currently, two official plugins are available:
+## Fonctionnalites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Recherche multicritere** : Recherche par ville, code postal ou via geolocalisation (Autour de moi).
+- **Carte Interactive** : Visualisation des stations sur une carte Leaflet avec zoom automatique.
+- **Gestion des Favoris** : Onglet dedie pour sauvegarder ses stations habituelles avec stockage local (localStorage).
+- **Navigation Intelligente** : Choix de l'itineraire entre Google Maps et Waze directement depuis l'application.
+- **Indicateur de Fiabilite** : Alerte visuelle pour les prix n'ayant pas ete mis a jour depuis plus de 48 heures.
+- **Mode Sombre** : Interface optimisee pour une utilisation de jour comme de nuit.
+- **Experience PWA** : Installable sur iOS et Android pour une utilisation plein ecran comme une application native.
 
-## React Compiler
+## Technologies utilisees
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React (Vite)** : Framework frontend principal.
+- **Vite PWA Plugin** : Gestion des Service Workers et du fichier Manifest.
+- **Leaflet** : Bibliotheque de cartographie interactive.
+- **API Prix des carburants** : Flux instantane de data.economie.gouv.fr.
+- **API Adresse** : Service de geocodage inverse de data.gouv.fr.
 
-## Expanding the ESLint configuration
+## Installation et Developpement
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Pour installer le projet localement :
+
+1. Cloner le depot :
+   ```bash
+   git clone [https://github.com/TON-PSEUDO/carburant-fr.git](https://github.com/ThRedMat/carburant-fr.git)
+   ```
+2. Installer les dependances :
+
+   ```bash
+    npm install
+   ```
+
+3. Lancer le serveur de developpement :
+
+   ```bash
+    npm run dev
+   ```
+
+## Construction et Déploiement
+
+Pour générer les fichiers de production :
+
+```bash
+ npm run build
+```
+
+Pour deployer l'application sur GitHub Pages :
+
+```bash
+ npm run deploy
+```
+
+## Configuration PWA
+
+L'application est configurée pour fonctionner hors connexion après la première visite grâce au plugin VitePWA.
+Les icones, le manifest et les assets statiques se trouvent dans le dossier /public. La propriété base dans vite.config.js est definie pour correspondre au sous-repertoire du deploiement sur GitHub Pages.
