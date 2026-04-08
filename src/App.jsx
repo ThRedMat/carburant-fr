@@ -60,19 +60,6 @@ function StationDetailPanel({ station, carburant, onClose }) {
               rel="noopener noreferrer"
               className="btn-maps"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-                <circle cx="12" cy="9" r="2.5" />
-              </svg>
               Maps
             </a>
             <a
@@ -81,21 +68,6 @@ function StationDetailPanel({ station, carburant, onClose }) {
               rel="noopener noreferrer"
               className="btn-waze"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2" />
-                <circle cx="7" cy="17" r="2" />
-                <path d="M9 17h6" />
-                <circle cx="17" cy="17" r="2" />
-              </svg>
               Waze
             </a>
           </div>
@@ -280,6 +252,10 @@ function App() {
     () => localStorage.getItem("theme") ?? "dark",
   );
 
+  // --- NOUVEAUX STATES POUR SUGGESTIONS (BIEN PLACÉS) ---
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   const [favoris, setFavoris] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("favoris") ?? "[]");
@@ -290,20 +266,40 @@ function App() {
 
   const mapRef = useRef(null);
 
+  // --- EFFET POUR LES SUGGESTIONS ---
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (recherche.length < 2) {
+        setSuggestions([]);
+        return;
+      }
+      try {
+        const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(recherche)}&type=municipality&limit=5`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const cityList = data.features.map((f) => ({
+          nom: f.properties.city,
+          cp: f.properties.postcode,
+        }));
+        setSuggestions(cityList);
+      } catch (err) {
+        console.error("Erreur suggestions:", err);
+      }
+    };
+
+    const timer = setTimeout(fetchSuggestions, 300);
+    return () => clearTimeout(timer);
+  }, [recherche]);
+
   // --- EFFET DE MISE A JOUR DES FAVORIS ---
-  // Dès que 'stations' (les résultats de recherche) change, on regarde si nos favoris s'y trouvent.
-  // Si oui, on met à jour les données du favori avec les prix tout frais de l'API.
   useEffect(() => {
     if (stations.length === 0) return;
-
     setFavoris((prevFavoris) => {
       let aChange = false;
       const nouveauxFavoris = prevFavoris.map((fav) => {
         const stationFraiche = stations.find(
           (s) => String(s.id) === String(fav.id),
         );
-
-        // Si on trouve la station dans les résultats frais ET que les données sont différentes
         if (
           stationFraiche &&
           JSON.stringify(stationFraiche) !== JSON.stringify(fav)
@@ -313,7 +309,6 @@ function App() {
         }
         return fav;
       });
-
       return aChange ? nouveauxFavoris : prevFavoris;
     });
   }, [stations]);
@@ -333,11 +328,9 @@ function App() {
     if (e) e.stopPropagation();
     setFavoris((prev) => {
       const exists = prev.some((f) => String(f.id) === String(station.id));
-      if (exists) {
-        return prev.filter((f) => String(f.id) !== String(station.id));
-      } else {
-        return [...prev, station];
-      }
+      return exists
+        ? prev.filter((f) => String(f.id) !== String(station.id))
+        : [...prev, station];
     });
   };
 
@@ -346,43 +339,30 @@ function App() {
       setChargement(true);
       setErreur(null);
       setOngletActif("recherche");
-
       const texte = saisie.trim().toUpperCase();
       const estCodePostal = /^\d+$/.test(texte);
       const filtre = estCodePostal
         ? `cp like "${texte}*"`
         : `ville like "${texte}*"`;
       const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(filtre)}&order_by=${carburant}_prix%20ASC&limit=50`;
-
       try {
         const rep = await fetch(url);
         const data = await rep.json();
         if (data.results?.length > 0) {
+          setStations(data.results);
+          setStationSelectionnee(null);
           const lats = data.results.map((s) => s.geom.lat);
           const lons = data.results.map((s) => s.geom.lon);
-          const centreLat = lats.reduce((a, b) => a + b, 0) / lats.length;
-          const centreLon = lons.reduce((a, b) => a + b, 0) / lons.length;
-          const stationsFiltrees = data.results.filter((s) => {
-            const dLat = Math.abs(s.geom.lat - centreLat);
-            const dLon = Math.abs(s.geom.lon - centreLon);
-            return dLat < 1 && dLon < 1;
-          });
-          setStations(stationsFiltrees);
-          setStationSelectionnee(null);
-          const lats2 = stationsFiltrees.map((s) => s.geom.lat);
-          const lons2 = stationsFiltrees.map((s) => s.geom.lon);
           setPosition([
-            lats2.reduce((a, b) => a + b, 0) / lats2.length,
-            lons2.reduce((a, b) => a + b, 0) / lons2.length,
+            lats.reduce((a, b) => a + b, 0) / lats.length,
+            lons.reduce((a, b) => a + b, 0) / lons.length,
           ]);
         } else {
           setStations([]);
-          setErreur(
-            "Aucune station trouvée. Essayez un code postal (ex : 31000).",
-          );
+          setErreur("Aucune station trouvée.");
         }
       } catch {
-        setErreur("Erreur réseau. Vérifiez votre connexion.");
+        setErreur("Erreur réseau.");
       } finally {
         setChargement(false);
       }
@@ -391,55 +371,50 @@ function App() {
   );
 
   const chercherAutourDeMoi = () => {
-    if (!navigator.geolocation) {
-      alert("Géolocalisation non supportée.");
-      return;
-    }
+    if (!navigator.geolocation) return;
     setGeoActif(true);
     setOngletActif("recherche");
-
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
-        const { latitude: lat, longitude: lon } = coords;
-        setPosition([lat, lon]);
-        const filtre = `within_distance(geom, geom'POINT(${lon} ${lat})', 10km)`;
-        const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(filtre)}&order_by=${carburant}_prix%20ASC&limit=50`;
-        try {
-          const [repStations, repAddr] = await Promise.all([
-            fetch(url),
-            fetch(
-              `https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`,
-            ),
-          ]);
-          const [dataStations, dataAddr] = await Promise.all([
-            repStations.json(),
-            repAddr.json(),
-          ]);
-          if (dataStations.results?.length > 0) {
-            setStations(dataStations.results);
-            setStationSelectionnee(null);
-          } else {
-            setStations([]);
-            alert("Aucune station dans un rayon de 10 km.");
-          }
-          if (dataAddr.features?.length > 0)
-            setRecherche(dataAddr.features[0].properties.city);
-          else setRecherche("Position actuelle");
-        } catch {
-          alert("Erreur lors de la récupération des données.");
-        }
-      },
-      () => alert("Impossible d'obtenir votre position."),
-    );
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      const { latitude: lat, longitude: lon } = coords;
+      setPosition([lat, lon]);
+      const filtre = `within_distance(geom, geom'POINT(${lon} ${lat})', 10km)`;
+      const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(filtre)}&order_by=${carburant}_prix%20ASC&limit=50`;
+      try {
+        const [repStations, repAddr] = await Promise.all([
+          fetch(url),
+          fetch(
+            `https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`,
+          ),
+        ]);
+        const [dataStations, dataAddr] = await Promise.all([
+          repStations.json(),
+          repAddr.json(),
+        ]);
+        if (dataStations.results?.length > 0) setStations(dataStations.results);
+        if (dataAddr.features?.length > 0)
+          setRecherche(dataAddr.features[0].properties.city);
+      } catch {
+        alert("Erreur de récupération.");
+      }
+    });
   };
 
-  useEffect(() => {
+  /*useEffect(() => {
     if (recherche) chargerDonnees(recherche);
-  }, [carburant]);
+  }, [carburant, recherche, chargerDonnees]); */ // Ajout des dépendances pour corriger l'erreur ESLint
+
+  // ✅ À AJOUTER
+  useEffect(() => {
+    // On ne rafraîchit que si on a déjà des stations à l'écran
+    if (stations.length > 0) {
+      chargerDonnees(recherche);
+    }
+  }, [carburant]); // On ne surveille QUE le changement de carburant, pas la saisie
 
   const gererRecherche = (e) => {
     e.preventDefault();
     setGeoActif(false);
+    setShowSuggestions(false);
     if (recherche.trim()) chargerDonnees(recherche);
   };
 
@@ -447,11 +422,8 @@ function App() {
     setStationSelectionnee(station);
     setTimeout(() => {
       if (mapRef.current) {
-        const topbarHeight = 56;
         const y =
-          mapRef.current.getBoundingClientRect().top +
-          window.scrollY -
-          topbarHeight;
+          mapRef.current.getBoundingClientRect().top + window.scrollY - 56;
         window.scrollTo({ top: y, behavior: "smooth" });
       }
     }, 50);
@@ -461,24 +433,20 @@ function App() {
     const copy = [...stations];
     const dir = tri.asc ? 1 : -1;
     if (tri.critere === "prix") {
-      return copy.sort((a, b) => {
-        const pA = a[`${carburant}_prix`] ?? Infinity;
-        const pB = b[`${carburant}_prix`] ?? Infinity;
-        return (pA - pB) * dir;
-      });
-    }
-    if (tri.critere === "enseigne") {
       return copy.sort(
-        (a, b) => getEnseigne(a).localeCompare(getEnseigne(b), "fr") * dir,
+        (a, b) =>
+          ((a[`${carburant}_prix`] ?? Infinity) -
+            (b[`${carburant}_prix`] ?? Infinity)) *
+          dir,
       );
     }
-    return copy;
+    return copy.sort(
+      (a, b) => getEnseigne(a).localeCompare(getEnseigne(b), "fr") * dir,
+    );
   }, [stations, tri, carburant]);
 
   return (
     <div className="app-root">
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
       <div className="topbar">
         <div className="topbar-logo">
           <div className="logo-icon">
@@ -486,7 +454,11 @@ function App() {
           </div>
           <span className="logo-name">CarburantFR</span>
         </div>
-        <form className="topbar-search" onSubmit={gererRecherche}>
+        <form
+          className="topbar-search"
+          onSubmit={gererRecherche}
+          style={{ position: "relative" }}
+        >
           <div className="search-input-wrap">
             <span className="search-icon">
               <SearchIcon />
@@ -494,10 +466,30 @@ function App() {
             <input
               type="text"
               value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
+              onChange={(e) => {
+                setRecherche(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onFocus={() => setShowSuggestions(true)}
               placeholder="Ville ou code postal..."
               className="search-input"
             />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="suggestions-list">
+                {suggestions.map((s, i) => (
+                  <li
+                    key={i}
+                    onClick={() => {
+                      setRecherche(s.nom);
+                      setShowSuggestions(false);
+                      chargerDonnees(s.nom);
+                    }}
+                  >
+                    <strong>{s.nom}</strong> <span>{s.cp}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
           <button
             type="button"
@@ -533,9 +525,9 @@ function App() {
               key={t.id}
               className={`chip${tri.critere === t.id ? " chip-active" : ""}`}
               onClick={() =>
-                setTri((prev) =>
-                  prev.critere === t.id
-                    ? { critere: t.id, asc: !prev.asc }
+                setTri((p) =>
+                  p.critere === t.id
+                    ? { ...p, asc: !p.asc }
                     : { critere: t.id, asc: true },
                 )
               }
@@ -555,7 +547,6 @@ function App() {
 
       <main className="main-content" style={{ paddingBottom: "80px" }}>
         {erreur && <div className="error-banner">{erreur}</div>}
-
         {stationSelectionnee && (
           <StationDetailPanel
             station={stationSelectionnee}
@@ -579,75 +570,49 @@ function App() {
                 />
               </div>
             )}
-
-            {stations.length > 0 && !chargement && (
-              <p className="stations-count">
-                <strong>{stationsTries.length}</strong> station
-                {stationsTries.length > 1 ? "s" : ""} affichée
-                {stationsTries.length > 1 ? "s" : ""}
-              </p>
-            )}
-
-            {chargement ? (
-              <div className="loading-wrap">
-                <div className="spinner" />
-                <span>Recherche en cours…</span>
-              </div>
-            ) : (
-              <div className="cards-grid">
-                {stationsTries.length > 0
-                  ? stationsTries.map((station, i) => (
-                      <StationCard
-                        key={station.id}
-                        station={station}
-                        isCheapest={
-                          tri.critere === "prix" && tri.asc && i === 0
-                        }
-                        typeSelectionne={carburant}
-                        isSelected={stationSelectionnee?.id === station.id}
-                        isFavori={favoris.some(
-                          (f) => String(f.id) === String(station.id),
-                        )}
-                        onSelect={() => handleSelect(station)}
-                        onToggleFavori={(e) => toggleFavori(station, e)}
-                      />
-                    ))
-                  : !erreur && (
-                      <div className="empty-state">
-                        Entrez une ville ou un code postal.
-                      </div>
-                    )}
-              </div>
-            )}
+            <div className="cards-grid">
+              {stationsTries.length > 0
+                ? stationsTries.map((s, i) => (
+                    <StationCard
+                      key={s.id}
+                      station={s}
+                      isCheapest={tri.critere === "prix" && tri.asc && i === 0}
+                      typeSelectionne={carburant}
+                      isSelected={stationSelectionnee?.id === s.id}
+                      isFavori={favoris.some(
+                        (f) => String(f.id) === String(s.id),
+                      )}
+                      onSelect={() => handleSelect(s)}
+                      onToggleFavori={(e) => toggleFavori(s, e)}
+                    />
+                  ))
+                : !erreur && (
+                    <div className="empty-state">
+                      Entrez une ville ou un code postal.
+                    </div>
+                  )}
+            </div>
           </>
         )}
 
         {ongletActif === "favoris" && (
           <div className="favoris-view">
-            <h2
-              style={{
-                color: "var(--text-primary)",
-                marginBottom: "20px",
-                fontSize: "1.5rem",
-              }}
-            >
+            <h2 style={{ color: "var(--text-primary)", marginBottom: "20px" }}>
               Mes Stations Favorites
             </h2>
-
             {favoris.length === 0 ? (
               <div className="empty-state">Aucun favori pour le moment.</div>
             ) : (
               <div className="cards-grid">
-                {favoris.map((station) => (
+                {favoris.map((s) => (
                   <StationCard
-                    key={`fav-${station.id}`}
-                    station={station}
-                    isCheapest={false}
+                    key={`fav-${s.id}`}
+                    station={s}
                     typeSelectionne={carburant}
-                    isSelected={stationSelectionnee?.id === station.id}
+                    isSelected={stationSelectionnee?.id === s.id}
                     isFavori={true}
-                    onSelect={() => handleSelect(station)}
-                    onToggleFavori={(e) => toggleFavori(station, e)}
+                    onSelect={() => handleSelect(s)}
+                    onToggleFavori={(e) => toggleFavori(s, e)}
                   />
                 ))}
               </div>
