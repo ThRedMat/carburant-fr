@@ -314,10 +314,12 @@ function App() {
           ]);
         } else {
           setStations([]);
-          setErreur("Aucune station trouvée.");
+          setErreur(
+            `Aucune donnée pour "${saisie}". Notez que l'API couvre la France métropolitaine et les DOM, mais pas les COM (Polynésie, etc.) ni l'étranger.`,
+          );
         }
       } catch {
-        setErreur("Erreur réseau.");
+        setErreur("Erreur réseau. Vérifiez votre connexion.");
       } finally {
         setChargement(false);
       }
