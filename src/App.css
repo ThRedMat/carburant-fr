@@ -718,72 +718,68 @@
   border-color: var(--text-muted);
 }
 
-/* =============================================
-   BOTTOM NAVIGATION BAR (PWA)
-   ============================================= */
-
+/* --- BARRE DE NAVIGATION BASSE --- */
 .bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 65px;
-  background-color: var(--bg-surface);
-  border-top: 1px solid var(--border-strong);
+  /* On augmente la hauteur pour le confort mobile */
+  height: 70px;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: space-around;
-  align-items: center;
-  z-index: 1000;
+  align-items: flex-start; /* Aligne en haut pour gérer le padding bas */
+
+  /* INDISPENSABLE : Ajoute de l'espace pour l'indicateur iPhone/iPad */
   padding-bottom: env(safe-area-inset-bottom);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  padding-top: 8px;
+  z-index: 1000;
 }
 
 .nav-item {
-  background: none;
-  border: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  background: none;
+  border: none;
   color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 500;
+  gap: 4px;
   cursor: pointer;
   flex: 1;
-  height: 100%;
-  transition: color 0.2s ease;
-  padding: 0;
-  font-family: inherit;
-}
-
-.nav-item span {
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.nav-item:hover {
-  color: var(--text-primary);
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent; /* Enlève le flash gris au clic sur iOS */
 }
 
 .nav-item.active {
-  color: var(--accent);
+  color: var(--accent); /* Ton orange #ff6b35 */
 }
 
+/* Empêche l'icône de rétrécir si le texte est long */
+.nav-item svg {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+}
+
+/* Style spécifique pour le badge favoris sur l'icône */
 .nav-badge {
   position: absolute;
-  top: -4px;
+  top: -6px;
   right: -10px;
-  background-color: #e74c3c;
+  background: var(--accent);
   color: white;
   font-size: 0.65rem;
-  font-weight: bold;
-  height: 16px;
-  min-width: 16px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
   border: 2px solid var(--bg-surface);
+  min-width: 18px;
+  text-align: center;
 }
 
 /* Masquer la barre sur les grands ecrans (ordinateur) 
