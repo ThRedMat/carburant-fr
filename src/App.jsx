@@ -22,9 +22,7 @@ function getEnseigne(station) {
 
 function StationDetailPanel({ station, carburant, onClose }) {
   const enseigne = getEnseigne(station);
-  // URL amelioree pour forcer le mode itineraire sur Google Maps
   const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${station.geom.lat},${station.geom.lon}`;
-  // URL specifique pour declencher l'application Waze
   const wazeUrl = `https://waze.com/ul?ll=${station.geom.lat},${station.geom.lon}&navigate=yes`;
 
   const horaires =
@@ -277,13 +275,11 @@ function App() {
   const [tri, setTri] = useState({ critere: "prix", asc: true });
   const [position, setPosition] = useState([44.837789, -0.57918]);
   const [geoActif, setGeoActif] = useState(false);
-
-  // L'ETAT MAGIQUE POUR LES ONGLETS
   const [ongletActif, setOngletActif] = useState("recherche");
-
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") ?? "dark",
   );
+
   const [favoris, setFavoris] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem("favoris") ?? "[]");
@@ -291,7 +287,36 @@ function App() {
       return [];
     }
   });
+
   const mapRef = useRef(null);
+
+  // --- EFFET DE MISE A JOUR DES FAVORIS ---
+  // Dès que 'stations' (les résultats de recherche) change, on regarde si nos favoris s'y trouvent.
+  // Si oui, on met à jour les données du favori avec les prix tout frais de l'API.
+  useEffect(() => {
+    if (stations.length === 0) return;
+
+    setFavoris((prevFavoris) => {
+      let aChange = false;
+      const nouveauxFavoris = prevFavoris.map((fav) => {
+        const stationFraiche = stations.find(
+          (s) => String(s.id) === String(fav.id),
+        );
+
+        // Si on trouve la station dans les résultats frais ET que les données sont différentes
+        if (
+          stationFraiche &&
+          JSON.stringify(stationFraiche) !== JSON.stringify(fav)
+        ) {
+          aChange = true;
+          return stationFraiche;
+        }
+        return fav;
+      });
+
+      return aChange ? nouveauxFavoris : prevFavoris;
+    });
+  }, [stations]);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -305,19 +330,21 @@ function App() {
   const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 
   const toggleFavori = (station, e) => {
-    e.stopPropagation();
-    setFavoris((prev) =>
-      prev.some((f) => f.id === station.id)
-        ? prev.filter((f) => f.id !== station.id)
-        : [...prev, station],
-    );
+    if (e) e.stopPropagation();
+    setFavoris((prev) => {
+      const exists = prev.some((f) => String(f.id) === String(station.id));
+      if (exists) {
+        return prev.filter((f) => String(f.id) !== String(station.id));
+      } else {
+        return [...prev, station];
+      }
+    });
   };
 
   const chargerDonnees = useCallback(
     async (saisie) => {
       setChargement(true);
       setErreur(null);
-      // On force le passage sur l'onglet recherche si on etait dans les favoris
       setOngletActif("recherche");
 
       const texte = saisie.trim().toUpperCase();
@@ -326,6 +353,7 @@ function App() {
         ? `cp like "${texte}*"`
         : `ville like "${texte}*"`;
       const url = `https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(filtre)}&order_by=${carburant}_prix%20ASC&limit=50`;
+
       try {
         const rep = await fetch(url);
         const data = await rep.json();
@@ -368,7 +396,6 @@ function App() {
       return;
     }
     setGeoActif(true);
-    // On force le passage sur l'onglet recherche
     setOngletActif("recherche");
 
     navigator.geolocation.getCurrentPosition(
@@ -452,7 +479,6 @@ function App() {
     <div className="app-root">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* --- BARRE DU HAUT FIXE --- */}
       <div className="topbar">
         <div className="topbar-logo">
           <div className="logo-icon">
@@ -469,7 +495,7 @@ function App() {
               type="text"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Rechercher par ville ou code postal..."
+              placeholder="Ville ou code postal..."
               className="search-input"
             />
           </div>
@@ -522,21 +548,14 @@ function App() {
             </button>
           ))}
         </div>
-        <button
-          className="btn-theme"
-          onClick={toggleTheme}
-          title="Changer le thème"
-        >
+        <button className="btn-theme" onClick={toggleTheme}>
           {theme === "dark" ? <SunIcon /> : <MoonIcon />}
         </button>
       </div>
 
-      {/* --- CONTENU PRINCIPAL --- */}
-      {/* On ajoute un padding en bas pour ne pas que les cartes passent sous la barre de navigation */}
       <main className="main-content" style={{ paddingBottom: "80px" }}>
         {erreur && <div className="error-banner">{erreur}</div>}
 
-        {/* Panneau de détail commun aux deux onglets */}
         {stationSelectionnee && (
           <StationDetailPanel
             station={stationSelectionnee}
@@ -545,9 +564,6 @@ function App() {
           />
         )}
 
-        {/* ========================================================= */}
-        {/* ONGLET 1 : RECHERCHE                                      */}
-        {/* ========================================================= */}
         {ongletActif === "recherche" && (
           <>
             {stations.length > 0 && (
@@ -589,15 +605,16 @@ function App() {
                         }
                         typeSelectionne={carburant}
                         isSelected={stationSelectionnee?.id === station.id}
-                        isFavori={favoris.some((f) => f.id === station.id)}
+                        isFavori={favoris.some(
+                          (f) => String(f.id) === String(station.id),
+                        )}
                         onSelect={() => handleSelect(station)}
                         onToggleFavori={(e) => toggleFavori(station, e)}
                       />
                     ))
                   : !erreur && (
                       <div className="empty-state">
-                        Entrez une ville ou un code postal pour trouver du
-                        carburant.
+                        Entrez une ville ou un code postal.
                       </div>
                     )}
               </div>
@@ -605,9 +622,6 @@ function App() {
           </>
         )}
 
-        {/* ========================================================= */}
-        {/* ONGLET 2 : FAVORIS                                        */}
-        {/* ========================================================= */}
         {ongletActif === "favoris" && (
           <div className="favoris-view">
             <h2
@@ -621,11 +635,7 @@ function App() {
             </h2>
 
             {favoris.length === 0 ? (
-              <div className="empty-state">
-                Vous n'avez pas encore de stations en favoris.
-                <br />
-                Cliquez sur le cœur d'une station pour la retrouver ici.
-              </div>
+              <div className="empty-state">Aucun favori pour le moment.</div>
             ) : (
               <div className="cards-grid">
                 {favoris.map((station) => (
@@ -646,13 +656,12 @@ function App() {
         )}
       </main>
 
-      {/* --- BARRE DE NAVIGATION EN BAS (Mobile Style) --- */}
       <nav className="bottom-nav">
         <button
           className={`nav-item ${ongletActif === "recherche" ? "active" : ""}`}
           onClick={() => {
             setOngletActif("recherche");
-            setStationSelectionnee(null); // On ferme le panneau quand on change d'onglet
+            setStationSelectionnee(null);
           }}
         >
           <NavSearchIcon />
